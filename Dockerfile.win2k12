@@ -1,0 +1,17 @@
+FROM fedora:41 AS build-win2k12
+RUN dnf install -y golang libnbd-devel
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o /migratekit main.go
+
+FROM fedora:41
+ADD https://fedorapeople.org/groups/virt/virtio-win/virtio-win.repo /etc/yum.repos.d/virtio-win.repo
+RUN \
+  dnf install --refresh -y nbdkit nbdkit-vddk-plugin libnbd virt-v2v && \
+  dnf install -y https://fedorapeople.org/groups/virt/virtio-win/repo/rpms/virtio-win-0.1.190-1.noarch.rpm && \
+  dnf clean all && \
+  rm -rf /var/cache/dnf
+COPY --from=build-win2k12 /migratekit /usr/local/bin/migratekit
+ENTRYPOINT ["/usr/local/bin/migratekit"]
